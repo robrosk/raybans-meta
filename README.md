@@ -12,9 +12,10 @@ Tap a button → capture a photo from the glasses camera mid-stream → save it 
 
 ## Layout
 
-- `ios/` — iOS app sources + Xcode setup steps (`SnapJournal`)
+- `core/` — portable C++17 engine: types, input ports, session state machine, unit tests
+- `platform/ios/` — SwiftUI app (MVVM) + Objective-C++ bridge + Swift adapters
 - `docs/SETUP.md` — prerequisites and Developer Center checklist
-- `docs/ARCHITECTURE.md` — system design starter with open decisions
+- `docs/ARCHITECTURE.md` — the full design: layers, threading, boundary rules
 
 ## Official docs
 

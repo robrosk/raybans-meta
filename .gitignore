@@ -11,5 +11,9 @@ DerivedData/
 .build/
 .swiftpm/
 
+# CMake / core builds
+core/build/
+cmake-build-*/
+
 # macOS
 .DS_Store
