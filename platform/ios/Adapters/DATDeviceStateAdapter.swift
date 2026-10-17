@@ -1,11 +1,14 @@
 import Foundation
+import MWDATCore
 
 /// Device state (battery, hinge, wear detection, thermal) from the DAT SDK.
 ///
-/// TODO: add the SwiftPM package https://github.com/facebook/meta-wearables-dat-ios
-/// and wire startMonitoring to the SDK's device-state publisher, forwarding:
-///   sink?.didUpdateDeviceState(batteryPercent, hingeOpen:, worn:, thermalWarning:)
-/// Reference: https://github.com/facebook/meta-wearables-dat-ios/tree/main/samples
+/// TODO: wire to MWDATCore's device APIs. Discovery path, per the SDK:
+///   wearables.deviceForIdentifier(_:) -> Device?
+///   then the Device's state publishers (battery/hinge/thermal), forwarded as:
+///     sink?.didUpdateDeviceState(batteryPercent, hingeOpen:, worn:, thermalWarning:)
+/// See the MWDATCore API reference + the CameraAccess sample's
+/// device-compatibility monitoring (addCompatibilityListener) for the pattern.
 final class DATDeviceStateAdapter: NSObject, RBDeviceStateProvider {
     private weak var sink: RBInputSink?
 
@@ -14,7 +17,7 @@ final class DATDeviceStateAdapter: NSObject, RBDeviceStateProvider {
     }
 
     func startMonitoring() {
-        // TODO: MWDATCore device-state wiring
+        // TODO: MWDATCore device-state wiring (see above)
     }
 
     func stopMonitoring() {

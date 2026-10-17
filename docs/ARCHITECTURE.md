@@ -71,6 +71,21 @@ per-sample. C++ types never appear in headers Swift imports (PIMPL in the
   can inject fakes.
 - On-device without glasses — Meta's Mock Device Kit.
 
+## Review notes (2026-10-17, against the official SDK sample)
+
+- The engine's `Streaming` state conflates two SDK-level steps: `DeviceSession`
+  (connection) and camera `Stream`. The SDK treats them separately — a session
+  can stay connected with no stream. v1 keeps them fused for simplicity; the
+  `DATCameraAdapter` already keeps the `DeviceSession` alive across pause/resume
+  (cheap + instant resume, per SDK guidance). Splitting them in the engine is a
+  later refactor if needed.
+- Failure propagation: adapters report unrecoverable errors via
+  `RBInputSink.didFail` -> `SessionEngine.fail()`. Stream/device hiccups that
+  the state machine can absorb (e.g. `.interrupted`) stay as events.
+- Mic audio never touches the DAT SDK: it's an `AVAudioEngine` tap on the
+  Bluetooth HFP route (Float32 -> Int16), per Meta's sample. Phone mic is never
+  used, even as a fallback.
+
 ## Open design decisions
 
 1. Storage: local-only journal (Documents dir) vs iCloud sync? Start local.

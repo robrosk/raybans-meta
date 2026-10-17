@@ -33,6 +33,9 @@ typedef NS_ENUM(NSInteger, RBStreamEvent) {
                    hingeOpen:(BOOL)hingeOpen
                         worn:(BOOL)worn
                thermalWarning:(BOOL)thermalWarning;
+/// Unrecoverable adapter error -> engine.fail(). Use sparingly; most failures
+/// should surface as stream/device events so the state machine can recover.
+- (void)didFail:(NSString *)message;
 @end
 
 @protocol RBCameraInput <NSObject>

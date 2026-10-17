@@ -42,7 +42,9 @@ public:
     }
 
 private:
-    __weak id<RBCameraInput> input_;
+    // Strong: the bridge owns the adapter wiring. The Swift adapter only holds
+    // the sink weakly, so there is no retain cycle.
+    id<RBCameraInput> input_;
     rb::ICameraObserver* observer_ = nullptr;
 };
 
@@ -67,7 +69,8 @@ public:
     }
 
 private:
-    __weak id<RBMicrophoneInput> input_;
+    // Strong: the bridge owns the adapter wiring (no retain cycle: adapter -> sink is weak).
+    id<RBMicrophoneInput> input_;
     rb::IMicrophoneObserver* observer_ = nullptr;
 };
 
@@ -89,7 +92,8 @@ public:
     }
 
 private:
-    __weak id<RBDeviceStateProvider> provider_;
+    // Strong: the bridge owns the adapter wiring (no retain cycle: adapter -> sink is weak).
+    id<RBDeviceStateProvider> provider_;
     rb::IDeviceStateObserver* observer_ = nullptr;
 };
 
@@ -119,6 +123,7 @@ private:
                  hingeOpen:(BOOL)hingeOpen
                       worn:(BOOL)worn
              thermalWarning:(BOOL)thermal;
+- (void)deliverFail:(NSString*)message;
 @end
 
 class EngineObserverForwarder : public rb::IEngineObserver {
@@ -131,6 +136,7 @@ public:
         });
     }
     void onPhoto(rb::Frame frame) override {
+        if (frame.jpeg.empty()) return;
         NSData* jpeg = [NSData dataWithBytes:frame.jpeg.data() length:frame.jpeg.size()];
         const double t =
             std::chrono::duration<double>(frame.capturedAt.time_since_epoch()).count();
@@ -213,6 +219,9 @@ private:
                         worn:(BOOL)w
                thermalWarning:(BOOL)t {
     [_bridge deliverDeviceState:battery hingeOpen:h worn:w thermalWarning:t];
+}
+- (void)didFail:(NSString*)message {
+    [_bridge deliverFail:message];
 }
 @end
 
@@ -306,6 +315,10 @@ private:
     if (_deviceAdapter)
         _deviceAdapter->deliverState((int)battery, hingeOpen == YES, worn == YES,
                                      thermal == YES);
+}
+
+- (void)deliverFail:(NSString*)message {
+    _engine->fail([message UTF8String] ?: "unknown error");
 }
 
 // User intents

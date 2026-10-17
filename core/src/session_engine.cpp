@@ -99,7 +99,11 @@ void SessionEngine::capturePhoto() {
         illegal("capturePhoto requires an active stream");
         return;
     }
-    if (camera_) camera_->capturePhoto();
+    if (!camera_) {
+        illegal("capturePhoto with no camera attached");
+        return;
+    }
+    camera_->capturePhoto();
 }
 
 void SessionEngine::fail(const std::string& message) {

@@ -43,6 +43,24 @@ struct FakeCamera : rb::ICameraInput {
     }
 };
 
+struct FakeMic : rb::IMicrophoneInput {
+    rb::IMicrophoneObserver* obs = nullptr;
+    bool capturing = false;
+
+    void setObserver(rb::IMicrophoneObserver* o) override { obs = o; }
+    void startCapture() override { capturing = true; }
+    void stopCapture() override { capturing = false; }
+};
+
+struct FakeDevice : rb::IDeviceStateProvider {
+    rb::IDeviceStateObserver* obs = nullptr;
+    bool monitoring = false;
+
+    void setObserver(rb::IDeviceStateObserver* o) override { obs = o; }
+    void startMonitoring() override { monitoring = true; }
+    void stopMonitoring() override { monitoring = false; }
+};
+
 struct Probe : rb::IEngineObserver {
     rb::SessionState lastState = rb::SessionState::Idle;
     int photos = 0;
@@ -59,6 +77,18 @@ struct Probe : rb::IEngineObserver {
     void onError(std::string m) override { lastError = std::move(m); }
 };
 
+void toStreaming(rb::SessionEngine& engine, std::shared_ptr<FakeCamera> camera,
+                 std::shared_ptr<FakeMic> mic, std::shared_ptr<FakeDevice> dev,
+                 Probe& probe) {
+    engine.setObserver(&probe);
+    engine.attachCamera(camera);
+    engine.attachMicrophone(mic);
+    engine.attachDeviceState(dev);
+    engine.beginRegistration();
+    engine.registrationComplete();
+    engine.startSession();
+}
+
 }  // namespace
 
 int main() {
@@ -67,16 +97,13 @@ int main() {
         rb::SessionEngine engine;
         Probe probe;
         auto camera = std::make_shared<FakeCamera>();
-        engine.setObserver(&probe);
-        engine.attachCamera(camera);
-
-        engine.beginRegistration();
-        CHECK(probe.lastState == rb::SessionState::Registering);
-        engine.registrationComplete();
-        CHECK(probe.lastState == rb::SessionState::Ready);
-        engine.startSession();
+        auto mic = std::make_shared<FakeMic>();
+        auto dev = std::make_shared<FakeDevice>();
+        toStreaming(engine, camera, mic, dev, probe);
         CHECK(probe.lastState == rb::SessionState::Streaming);
         CHECK(camera->streaming);
+        CHECK(mic->capturing);
+        CHECK(dev->monitoring);
 
         engine.capturePhoto();
         CHECK(probe.photos == 1);
@@ -85,13 +112,19 @@ int main() {
         engine.onHingeClosed();
         CHECK(probe.lastState == rb::SessionState::Paused);
         CHECK(!camera->streaming);
+        // Pause keeps mic + device monitoring alive (cheap; needed for auto-resume).
+        CHECK(mic->capturing);
+        CHECK(dev->monitoring);
 
         engine.resumeSession();
         CHECK(probe.lastState == rb::SessionState::Streaming);
+        CHECK(camera->streaming);
 
         engine.stopSession();
         CHECK(probe.lastState == rb::SessionState::Stopped);
         CHECK(!camera->streaming);
+        CHECK(!mic->capturing);
+        CHECK(!dev->monitoring);
     }
 
     // 2. capturePhoto outside Streaming is rejected, not crashed.
@@ -118,6 +151,9 @@ int main() {
         engine.startSession();  // Idle -> Streaming is illegal
         CHECK(probe.lastState == rb::SessionState::Idle);
         CHECK(!probe.lastError.empty());
+
+        engine.pauseSession();  // Idle -> Paused is illegal
+        CHECK(probe.lastState == rb::SessionState::Idle);
     }
 
     // 4. Interrupted stream pauses the session.
@@ -125,12 +161,8 @@ int main() {
         rb::SessionEngine engine;
         Probe probe;
         auto camera = std::make_shared<FakeCamera>();
-        engine.setObserver(&probe);
-        engine.attachCamera(camera);
-
-        engine.beginRegistration();
-        engine.registrationComplete();
-        engine.startSession();
+        toStreaming(engine, camera, std::make_shared<FakeMic>(),
+                    std::make_shared<FakeDevice>(), probe);
         camera->obs->onStreamEvent(rb::StreamEvent::Interrupted);
         CHECK(probe.lastState == rb::SessionState::Paused);
     }
@@ -163,8 +195,87 @@ int main() {
         engine.beginRegistration();
         engine.fail("boom");
         CHECK(probe.lastState == rb::SessionState::Failed);
+        CHECK(!probe.lastError.empty());
         engine.reset();
         CHECK(probe.lastState == rb::SessionState::Idle);
+        // And the engine is usable again after reset.
+        engine.beginRegistration();
+        CHECK(probe.lastState == rb::SessionState::Registering);
+    }
+
+    // 7. Restart after stop: Stopped -> Streaming works, adapters re-armed.
+    {
+        rb::SessionEngine engine;
+        Probe probe;
+        auto camera = std::make_shared<FakeCamera>();
+        toStreaming(engine, camera, std::make_shared<FakeMic>(),
+                    std::make_shared<FakeDevice>(), probe);
+        engine.stopSession();
+        CHECK(probe.lastState == rb::SessionState::Stopped);
+
+        probe.lastError.clear();
+        engine.startSession();
+        CHECK(probe.lastError.empty());
+        CHECK(probe.lastState == rb::SessionState::Streaming);
+        CHECK(camera->streaming);
+        engine.capturePhoto();
+        CHECK(probe.photos == 1);
+    }
+
+    // 8. onTakenOff behaves like onHingeClosed.
+    {
+        rb::SessionEngine engine;
+        Probe probe;
+        auto camera = std::make_shared<FakeCamera>();
+        toStreaming(engine, camera, std::make_shared<FakeMic>(),
+                    std::make_shared<FakeDevice>(), probe);
+        engine.onTakenOff();
+        CHECK(probe.lastState == rb::SessionState::Paused);
+        CHECK(!camera->streaming);
+    }
+
+    // 9. capturePhoto after stop is rejected.
+    {
+        rb::SessionEngine engine;
+        Probe probe;
+        auto camera = std::make_shared<FakeCamera>();
+        toStreaming(engine, camera, std::make_shared<FakeMic>(),
+                    std::make_shared<FakeDevice>(), probe);
+        engine.stopSession();
+        probe.lastError.clear();
+        engine.capturePhoto();
+        CHECK(probe.photos == 0);
+        CHECK(!probe.lastError.empty());
+    }
+
+    // 10. Engine works with no adapters attached (null-safe).
+    {
+        rb::SessionEngine engine;
+        Probe probe;
+        engine.setObserver(&probe);
+        engine.beginRegistration();
+        engine.registrationComplete();
+        engine.startSession();
+        CHECK(probe.lastState == rb::SessionState::Streaming);
+        engine.capturePhoto();  // no camera: error, no crash
+        CHECK(!probe.lastError.empty());
+        engine.stopSession();
+        CHECK(probe.lastState == rb::SessionState::Stopped);
+    }
+
+    // 11. Double pause is rejected; state unchanged.
+    {
+        rb::SessionEngine engine;
+        Probe probe;
+        auto camera = std::make_shared<FakeCamera>();
+        toStreaming(engine, camera, std::make_shared<FakeMic>(),
+                    std::make_shared<FakeDevice>(), probe);
+        engine.pauseSession();
+        CHECK(probe.lastState == rb::SessionState::Paused);
+        probe.lastError.clear();
+        engine.pauseSession();
+        CHECK(!probe.lastError.empty());
+        CHECK(probe.lastState == rb::SessionState::Paused);
     }
 
     std::cout << "all tests passed\n";

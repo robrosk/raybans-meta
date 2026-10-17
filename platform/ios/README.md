@@ -14,12 +14,25 @@ Swift adapters, over the portable C++ core in `core/`.
    `#import "RBSessionBridge.h"` there.
 4. Add `Adapters/` and `App/` Swift files to the target.
 5. File > Add Package Dependencies >
-   `https://github.com/facebook/meta-wearables-dat-ios` (needed when you
-   wire up the real `DAT*` adapters; fakes work without it).
-6. Add `Info.plist` keys from your Developer Center project:
-   `AppLinkURLScheme`, `MetaAppID`, `ClientToken`, `TeamID`.
+   `https://github.com/facebook/meta-wearables-dat-ios` (needed for the real
+   `DAT*` adapters; the `FakeCameraAdapter` works without it).
+6. Add the `MWDAT` dictionary + required keys to `Info.plist` — see
+   `docs/SETUP.md` for the exact nesting and the Bluetooth/mic/background
+   entries Meta's sample requires.
 7. Compare against the official sample app when wiring adapters:
-   `facebook/meta-wearables-dat-ios/tree/main/samples`.
+   `facebook/meta-wearables-dat-ios/tree/main/samples/CameraAccess`.
+   Without glasses, enable the SDK's Mock Device Kit (`MWDATMockDevice`,
+   `MockDeviceKit.shared`) — the sample shows the pattern.
+
+## Notes
+
+- `RBSessionBridge` retains attached adapters, so one-line
+  `bridge.attachCameraInput(...)` calls are safe.
+- `DATCameraAdapter` is fully wired to the real SDK (session -> camera ->
+  stream -> photo). `HFPMicrophoneAdapter` covers the happy path;
+  interruption/route-change handling (see the sample's
+  `AudioInputHandler.swift`) is still TODO. `DATDeviceStateAdapter` is a
+  precise TODO against `MWDATCore`'s device APIs.
 
 Run on a real device — the Bluetooth session with the glasses doesn't work
 in the simulator. The `FakeCameraAdapter` lets all UI work proceed without
