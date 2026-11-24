@@ -23,7 +23,8 @@ core/                        pure C++17 — types, input ports, SessionEngine
   every input event to a single `IEngineObserver`.
 
 State machine: `idle -> registering -> ready -> streaming <-> paused`,
-`streaming/paused -> stopped`, `* -> failed -> idle` (via `reset()`).
+`streaming/paused -> stopped`, `stopped -> streaming` (restart),
+`* -> failed -> idle` (via `reset()`).
 Illegal transitions are rejected with `onError`, never crashes.
 Guards encode real constraints, e.g. `capturePhoto()` only in `streaming`.
 
