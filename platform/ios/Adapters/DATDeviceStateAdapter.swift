@@ -3,12 +3,14 @@ import MWDATCore
 
 /// Device state (battery, hinge, wear detection, thermal) from the DAT SDK.
 ///
-/// TODO: wire to MWDATCore's device APIs. Discovery path, per the SDK:
-///   wearables.deviceForIdentifier(_:) -> Device?
-///   then the Device's state publishers (battery/hinge/thermal), forwarded as:
+/// TODO: wire to MWDATCore's device APIs (DAT 1.0+; `deviceStateStream(for:)`
+/// was removed in 1.0). Discovery path, per the SDK:
+///   session.device (DeviceSession.device) or wearables.deviceForIdentifier(_:) -> Device?
+///   then device.addDeviceStateListener { (state: DeviceState) in ... }, which
+///   fires immediately and on every change. Map batteryLevel, hingeState,
+///   donState and thermalLevel, forwarded as:
 ///     sink?.didUpdateDeviceState(batteryPercent, hingeOpen:, worn:, thermalWarning:)
-/// See the MWDATCore API reference + the CameraAccess sample's
-/// device-compatibility monitoring (addCompatibilityListener) for the pattern.
+/// See the MWDATCore API reference + the DAT CHANGELOG (1.0.0, "Device state on Device").
 final class DATDeviceStateAdapter: NSObject, RBDeviceStateProvider {
     private weak var sink: RBInputSink?
 
