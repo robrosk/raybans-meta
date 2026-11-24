@@ -68,13 +68,17 @@ struct Probe : rb::IEngineObserver {
     float lastLevel = -1.0f;
     rb::DeviceState lastDevice{};
     std::string lastError;
+    int errors = 0;
 
     void onStateChanged(rb::SessionState s) override { lastState = s; }
     void onPhoto(rb::Frame) override { ++photos; }
     void onAudio(rb::AudioChunk) override { ++audioChunks; }
     void onAudioLevel(float l) override { lastLevel = l; }
     void onDeviceState(rb::DeviceState s) override { lastDevice = s; }
-    void onError(std::string m) override { lastError = std::move(m); }
+    void onError(std::string m) override {
+        ++errors;
+        lastError = std::move(m);
+    }
 };
 
 void toStreaming(rb::SessionEngine& engine, std::shared_ptr<FakeCamera> camera,
@@ -276,6 +280,51 @@ int main() {
         engine.pauseSession();
         CHECK(!probe.lastError.empty());
         CHECK(probe.lastState == rb::SessionState::Paused);
+    }
+
+    // 12. reset() only leaves Failed: from Streaming it is rejected, state kept.
+    {
+        rb::SessionEngine engine;
+        Probe probe;
+        auto camera = std::make_shared<FakeCamera>();
+        toStreaming(engine, camera, std::make_shared<FakeMic>(),
+                    std::make_shared<FakeDevice>(), probe);
+        probe.lastError.clear();
+        engine.reset();
+        CHECK(!probe.lastError.empty());
+        CHECK(probe.lastState == rb::SessionState::Streaming);
+        CHECK(engine.state() == rb::SessionState::Streaming);
+        CHECK(camera->streaming);
+    }
+
+    // 13. Stop straight from Paused turns every input off.
+    {
+        rb::SessionEngine engine;
+        Probe probe;
+        auto camera = std::make_shared<FakeCamera>();
+        auto mic = std::make_shared<FakeMic>();
+        auto dev = std::make_shared<FakeDevice>();
+        toStreaming(engine, camera, mic, dev, probe);
+        engine.pauseSession();
+        CHECK(probe.lastState == rb::SessionState::Paused);
+        engine.stopSession();
+        CHECK(probe.lastState == rb::SessionState::Stopped);
+        CHECK(!camera->streaming);
+        CHECK(!mic->capturing);
+        CHECK(!dev->monitoring);
+    }
+
+    // 14. A second fail() while Failed is a no-op: one error, message kept.
+    {
+        rb::SessionEngine engine;
+        Probe probe;
+        engine.setObserver(&probe);
+        engine.fail("first");
+        CHECK(probe.errors == 1);
+        engine.fail("second");
+        CHECK(probe.errors == 1);
+        CHECK(probe.lastError == "first");
+        CHECK(probe.lastState == rb::SessionState::Failed);
     }
 
     std::cout << "all tests passed\n";
