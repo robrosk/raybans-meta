@@ -6,7 +6,7 @@ Swift adapters, over the portable C++ core in `core/`.
 ## Xcode setup
 
 1. Create a new iOS App project in this directory (name it `SnapJournal`,
-   iOS 15.2+, using your registered bundle ID).
+   iOS 17.2+, using your registered bundle ID).
 2. Add the C++ core: drag `core/include` and `core/src` into the project
    (or add them to the target's Compile Sources / Header Search Paths).
 3. Add `Bridge/RBSessionBridge.h` + `RBSessionBridge.mm` to the target.
