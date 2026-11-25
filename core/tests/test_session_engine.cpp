@@ -327,6 +327,22 @@ int main() {
         CHECK(probe.lastState == rb::SessionState::Failed);
     }
 
+    // 15. reset() after a clean stop is rejected (D-10); restart still works.
+    {
+        rb::SessionEngine engine;
+        Probe probe;
+        auto camera = std::make_shared<FakeCamera>();
+        toStreaming(engine, camera, std::make_shared<FakeMic>(),
+                    std::make_shared<FakeDevice>(), probe);
+        engine.stopSession();
+        probe.lastError.clear();
+        engine.reset();
+        CHECK(!probe.lastError.empty());
+        CHECK(probe.lastState == rb::SessionState::Stopped);
+        engine.startSession();
+        CHECK(probe.lastState == rb::SessionState::Streaming);
+    }
+
     std::cout << "all tests passed\n";
     return 0;
 }

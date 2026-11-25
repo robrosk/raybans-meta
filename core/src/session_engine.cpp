@@ -36,8 +36,7 @@ bool SessionEngine::canTransition(SessionState next) const {
             return next == SessionState::Streaming || next == SessionState::Stopped ||
                    next == SessionState::Failed;
         case SessionState::Stopped:
-            return next == SessionState::Streaming || next == SessionState::Idle ||
-                   next == SessionState::Failed;
+            return next == SessionState::Streaming || next == SessionState::Failed;
         case SessionState::Failed:
             return next == SessionState::Idle;
     }
