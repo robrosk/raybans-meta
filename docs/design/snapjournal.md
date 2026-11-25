@@ -1,7 +1,7 @@
 # SnapJournal design
 
 Status: describes the code as of `562d936`. The decisions marked **Decided**
-(D-4 to D-9) land in the pull requests that implement them, and each of those
+(D-4 to D-10) land in the pull requests that implement them, and each of those
 updates this doc. `docs/ARCHITECTURE.md` is the short
 overview; this doc is the rationale and the contract. When they disagree about
 behavior, the contract here wins and the code or the overview is the bug.
@@ -135,7 +135,7 @@ None are set yet. Q-1 to Q-3 below are the questions that would set them.
 | D-7 | Must adapters call `RBInputSink` on the main thread, or must the bridge make it safe from any thread? | **Decided: the bridge makes it safe.** Every sink call hops to the main queue before it reaches the engine, so the engine needs no locks and only ever runs on main (INV-4). |
 | D-8 | How does a refused photo capture surface (FAIL-3)? | **Decided: log it and report it, don't fail.** The adapter logs a warning with `os.Logger` and reports it through the sink; the engine emits `onError` and keeps its state. |
 | D-9 | Which mic-permission and audio-route APIs? | **Decided: the current ones,** with the older ones kept beside them and marked deprecated (see "Audio APIs" below). |
-| Q-1 | Should `reset()` also be allowed from `stopped`? | Open. The code allows it, INV-2 does not list it, and no test covers it. |
+| D-10 | Should `reset()` also be allowed from `stopped`? | **Decided: no.** `reset()` is the recovery path out of `failed` only. From `stopped`, the next step is to start again. `idle` means "not registered", which is false after a clean stop because Meta AI still holds the registration. Leaving Meta AI will get its own `unregister` intent when it is built. |
 | Q-4 | Storage: local journal in Documents, or iCloud sync? | Not built. Start local. |
 | Q-5 | Session UX: one long-lived stream, or start/stop per snap? | One stream. |
 | Q-6 | Reconnect policy when the hinge closes or the glasses come off: auto-resume or ask? | The engine pauses; resume is manual. |
